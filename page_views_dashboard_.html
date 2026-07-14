@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Page Views Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ============================================================
+       SIGNAL DESK — page views telemetry
+       A cool slate console: numbers live in a monospaced tabular
+       face, structure is carried by hairline rules and a thin
+       accent tab on each panel head. One working accent (data
+       blue); amber is reserved strictly for movement/deltas.
+       ============================================================ */
+    :root{
+      --ink:#12171d;         /* headings, primary text          */
+      --text:#2b333c;        /* body text                       */
+      --muted:#6b7580;       /* captions, secondary             */
+      --faint:#9aa4ae;       /* axis ticks, disabled            */
+      --bg:#eef1f4;          /* app canvas                      */
+      --surface:#ffffff;     /* panels                          */
+      --surface-2:#f4f6f8;   /* header cells, inset             */
+      --surface-3:#e9edf1;   /* pressed / active                */
+      --border:#d3dae1;      /* standard hairline               */
+      --line:#e5eaef;        /* inner rules                     */
+      --primary:#2563a8;     /* data blue — the working accent  */
+      --primary-ink:#1d4e85; /* darker blue for text-on-white   */
+      --primary-wash:#eaf1f9;/* blue tint fill                  */
+      --accent:#b26a12;      /* amber — deltas / movement ONLY  */
+      --pos:#1f7a53;         /* increase                        */
+      --neg:#b23a3a;         /* decrease                        */
+      --danger:#b23a3a;
+      --radius:5px;
+      --mono:"JetBrains Mono","SFMono-Regular",ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;
+      --sans:"Inter",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif;
+      --shadow:0 1px 2px rgba(18,23,29,.05),0 4px 16px rgba(18,23,29,.06);
+    }
+    *{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+    /* numbers everywhere read as instrument data */
+    .num,.summary strong.num,td.numeric,th.numeric,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-.01em}
+    .summary strong:not(.num){font-size:15px;font-weight:600;line-height:1.3}
+    button,input,select{font:inherit;color:var(--text)}
+
+    /* ---- controls ---- */
+    button,.button{border:1px solid var(--border);background:var(--surface);color:var(--ink);padding:7px 12px;border-radius:var(--radius);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;font-weight:550;transition:background .12s,border-color .12s,box-shadow .12s}
+    button:hover,.button:hover{background:var(--surface-2);border-color:#c1cad3}
+    button:active,.button:active{background:var(--surface-3)}
+    button.primary,.button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    button.primary:hover,.button.primary:hover{background:var(--primary-ink);border-color:var(--primary-ink)}
+    button.danger{color:var(--danger);border-color:#e0c2c2;background:#fff}
+    button.danger:hover{background:#fbf1f1;border-color:#d3a5a5}
+    button:disabled{opacity:.42;cursor:not-allowed}
+    :focus-visible{outline:2px solid var(--primary);outline-offset:1px;border-radius:3px}
+    input[type="search"],input[type="number"],input[type="date"],select{width:100%;border:1px solid var(--border);border-radius:var(--radius);background:#fff;color:var(--ink);padding:7px 9px;min-height:34px;transition:border-color .12s,box-shadow .12s}
+    input:hover,select:hover{border-color:#c1cad3}
+    input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,168,.14)}
+    select[multiple]{height:auto;min-height:92px;padding:4px}
+    select[multiple] option{padding:3px 6px;border-radius:3px}
+    select[multiple] option:checked{background:var(--primary-wash);color:var(--primary-ink);font-weight:600}
+    .combo-source{display:none}
+    /* ---- typeahead multiselect ---- */
+    .combo{position:relative}
+    .combo-control{display:flex;flex-wrap:wrap;gap:4px;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:#fff;padding:4px 30px 4px 5px;min-height:34px;cursor:text;transition:border-color .12s,box-shadow .12s}
+    .combo-control:hover{border-color:#c1cad3}
+    .combo.open .combo-control{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,168,.14)}
+    .combo-chip{display:inline-flex;align-items:center;gap:5px;background:var(--primary-wash);color:var(--primary-ink);border:1px solid #c4d8ef;border-radius:4px;padding:2px 4px 2px 7px;font-size:12px;font-weight:600;max-width:170px}
+    .combo-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .combo-chip button{min-height:0;height:16px;width:16px;padding:0;border:0;background:transparent;color:var(--primary-ink);font-size:14px;line-height:1;border-radius:3px;flex:none}
+    .combo-chip button:hover{background:rgba(37,99,168,.18)}
+    .combo-input{flex:1;min-width:70px;border:0!important;outline:none;padding:3px 2px!important;min-height:24px!important;background:transparent;box-shadow:none!important}
+    .combo-input:focus{box-shadow:none!important}
+    .combo-caret{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--faint);pointer-events:none}
+    .combo-clear{position:absolute;right:26px;top:50%;transform:translateY(-50%);min-height:0;height:18px;width:18px;padding:0;border:0;background:transparent;color:var(--faint);font-size:15px;line-height:1;border-radius:3px;display:none}
+    .combo.has-sel .combo-clear{display:inline-flex;align-items:center;justify-content:center}
+    .combo-clear:hover{background:var(--surface-3);color:var(--ink)}
+    .combo-menu{position:absolute;z-index:40;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 10px 30px rgba(18,23,29,.16);max-height:240px;overflow:auto;padding:4px;display:none}
+    .combo.open .combo-menu{display:block}
+    .combo-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:13px;color:var(--text)}
+    .combo-opt:hover,.combo-opt.active{background:var(--surface-2)}
+    .combo-opt.sel{color:var(--primary-ink);font-weight:600}
+    .combo-opt .box{width:15px;height:15px;flex:none;border:1px solid var(--border);border-radius:3px;background:#fff;position:relative}
+    .combo-opt.sel .box{background:var(--primary);border-color:var(--primary)}
+    .combo-opt.sel .box::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+    .combo-empty{padding:10px 8px;color:var(--muted);font-size:12.5px}
+    label{display:block;font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;color:var(--muted)}
+
+    /* ---- header ---- */
+    header{height:58px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:20}
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}
+    .brand-mark{width:26px;height:26px;flex:none;border-radius:5px;background:linear-gradient(150deg,var(--primary),#3f7ec2);position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+    .brand-mark::before,.brand-mark::after{content:"";position:absolute;left:5px;bottom:5px;width:3px;border-radius:1px;background:rgba(255,255,255,.92)}
+    .brand-mark::before{height:9px;box-shadow:5px 0 0 rgba(255,255,255,.6),10px 3px 0 rgba(255,255,255,.9)}
+    .brand-mark::after{height:14px;left:15px;box-shadow:5px -3px 0 rgba(255,255,255,.55)}
+    header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+    header .eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:650;margin-bottom:1px}
+    main{max-width:1360px;margin:0 auto;padding:18px 20px 40px}
+
+    /* ---- panels ---- */
+    .section{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);margin-bottom:14px;box-shadow:var(--shadow)}
+    .section-head{padding:12px 14px 12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative}
+    .section-head::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:3px;border-radius:0 2px 2px 0;background:var(--primary)}
+    .section-head h2,.section-head h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em;color:var(--ink);text-transform:none}
+    .section-head .sub{font-size:11.5px;color:var(--muted)}
+    .section-body{padding:14px}
+
+    /* ---- filter toolbar ---- */
+    .toolbar{display:grid;grid-template-columns:1.1fr 1.1fr 1.2fr 1fr 1.2fr .9fr .9fr .9fr;gap:11px 12px;align-items:end;padding:16px 16px 14px}
+    .toolbar::before{background:var(--accent)}
+    .toolbar .wide-actions{grid-column:1/-1;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;margin-top:2px}
+    .stack{display:grid;gap:12px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row.between{justify-content:space-between}.field{min-width:0}
+    .muted{color:var(--muted)}.small{font-size:11.5px}.hidden{display:none!important}.error{color:var(--danger);font-weight:600}.status{min-height:18px}
+    .hint{margin-top:4px;color:var(--faint);font-size:11px;letter-spacing:.01em}
+
+    /* ---- summary stat strip ---- */
+    .summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
+    .summary div{padding:12px 15px;position:relative}
+    .summary div+div{border-left:1px solid var(--line)}
+    .summary span{display:block;color:var(--muted);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;margin-bottom:5px}
+    .summary strong{font-size:22px;font-weight:600;color:var(--ink);line-height:1.05;display:block}
+    .summary div:first-child strong{color:var(--primary-ink)}
+
+    /* ---- charts ---- */
+    .chart-wrap{position:relative}
+    .chart-tooltip{position:absolute;z-index:10;pointer-events:none;background:var(--ink);border:1px solid var(--ink);border-radius:6px;padding:8px 10px;box-shadow:0 6px 22px rgba(18,23,29,.28);font-size:11.5px;max-width:300px;color:#eef1f4;line-height:1.5}
+    .chart-tooltip strong{color:#fff}
+    canvas{width:100%;background:#fff;border:1px solid var(--line);border-radius:var(--radius);display:block;cursor:crosshair}
+    #trendChart{height:580px}#paretoChart{height:560px}
+
+    /* ---- tables ---- */
+    table{width:100%;border-collapse:collapse;font-size:12.5px}
+    th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{font-weight:650;background:var(--surface-2);color:var(--muted);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;position:sticky;top:0;z-index:1}
+    tbody tr:hover{background:var(--primary-wash)}
+    td.numeric,th.numeric{text-align:right}
+    .table-wrap{max-height:440px;overflow:auto;border-top:1px solid var(--line)}
+    .linkish{color:var(--primary-ink);font-weight:600;cursor:pointer;border-bottom:1px dotted rgba(29,78,133,.4)}
+    .linkish:hover{border-bottom-style:solid}
+    .page-link{color:var(--primary-ink);font-weight:600;text-decoration:none;border-bottom:1px solid transparent}
+    .page-link:hover{border-bottom-color:currentColor}
+    .drill-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--primary);background:var(--primary-wash);color:var(--primary-ink);padding:4px 6px 4px 10px;border-radius:100px;font-weight:600;font-size:12px}
+    .drill-chip button{min-height:22px;padding:0 7px;border-radius:100px;border-color:transparent;background:transparent;color:var(--primary-ink);font-size:14px;line-height:1}
+    .drill-chip button:hover{background:rgba(37,99,168,.16)}
+    .pos{color:var(--pos);font-weight:600}.neg{color:var(--neg);font-weight:600}
+
+    /* ---- period tabs (segmented) ---- */
+    .tabs{display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface-2);padding:2px;gap:2px}
+    .tabs button{border:0;border-radius:4px;background:transparent;min-height:30px;padding:5px 12px;color:var(--muted);font-weight:600}
+    .tabs button:hover{background:rgba(0,0,0,.04)}
+    .tabs button.active{background:var(--surface);color:var(--primary-ink);box-shadow:0 1px 2px rgba(18,23,29,.12)}
+
+    .checkline{display:flex;gap:8px;align-items:center}.checkline input{width:auto;accent-color:var(--primary)}.checkline label{margin:0;font-weight:600;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--text)}
+    .two-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .mini-head{font-weight:700;margin:0 0 8px;font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px}
+    .mini-head::before{content:"";width:8px;height:8px;border-radius:2px;flex:none}
+    .mini-head.up::before{background:var(--pos)}.mini-head.down::before{background:var(--neg)}
+
+    /* ---- dialog + dropzone ---- */
+    dialog{border:1px solid var(--border);border-radius:8px;padding:0;width:min(760px,calc(100vw - 32px));box-shadow:0 18px 50px rgba(18,23,29,.30)}
+    dialog::backdrop{background:rgba(18,23,29,.42);backdrop-filter:blur(2px)}
+    .modal-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+    .modal-head strong{font-size:14px;color:var(--ink)}
+    .modal-body{padding:16px}
+    .drop-zone{border:1.5px dashed var(--border);border-radius:var(--radius);padding:30px;text-align:center;background:var(--surface-2);transition:background .12s,border-color .12s}
+    .drop-zone.dragover{background:var(--primary-wash);border-color:var(--primary)}
+    .drop-zone input{display:none}
+    .drop-zone p{margin:0 0 12px;color:var(--muted)}
+
+    /* ---- collapsible panels ---- */
+    details{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);margin-bottom:14px;box-shadow:var(--shadow)}
+    summary{cursor:pointer;padding:12px 14px 12px 16px;font-weight:700;font-size:13px;color:var(--ink);list-style:none;display:flex;align-items:center;gap:10px;position:relative}
+    summary::-webkit-details-marker{display:none}
+    summary::before{content:"";width:0;height:0;border-left:5px solid var(--faint);border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s;flex:none}
+    details[open]>summary::before{transform:rotate(90deg)}
+    details[open]>summary{border-bottom:1px solid var(--line)}
+    .details-inner{padding:14px}
+    .file-name{max-width:620px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .saved-grid{display:grid;grid-template-columns:2fr 2fr auto auto auto;gap:10px;align-items:end}
+
+    @media(max-width:1180px){.toolbar{grid-template-columns:repeat(3,minmax(130px,1fr))}.saved-grid{grid-template-columns:1fr 1fr}.summary{grid-template-columns:repeat(2,1fr)}.summary div:nth-child(odd){border-left:0}.summary div:nth-child(n+3){border-top:1px solid var(--line)}.two-cols{grid-template-columns:1fr}}
+    @media(max-width:700px){main{padding:14px}.toolbar{grid-template-columns:1fr}.summary{grid-template-columns:1fr}.summary div{border-left:0!important}.summary div+div{border-top:1px solid var(--line)}header{position:static;height:auto;padding:12px 16px}.saved-grid{grid-template-columns:1fr}#trendChart{height:440px}#paretoChart{height:460px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div>
+      <div class="eyebrow">Intranet analytics</div>
+      <h1>Page Views</h1>
+    </div>
+  </div>
+  <div class="row"><span id="fileStatus" class="muted small file-name">Loading data…</span><button id="openUploadBtn" class="primary">Load data</button></div>
+</header>
+<main>
+  <div id="emptyState" class="section"><div class="section-head"><h2>No data loaded</h2></div><div class="section-body"><p class="muted" style="margin-top:0">This dashboard reads a page-views export and charts what's being viewed, when, and by which area. The default file loads on its own when the page is served alongside it. To look at a different export, use <strong>Load data</strong> and choose a CSV.</p><p id="errorBox" class="error"></p></div></div>
+
+  <section id="dashboard" class="hidden">
+    <div class="toolbar section section-body">
+      <div class="field"><label id="categoryFilterLabel" for="categoryFilterInput">Page category</label><div class="combo" id="categoryFilterCombo"></div><select id="categoryFilter" multiple class="combo-source"></select><div class="hint">Type to filter · no selection = all</div></div>
+      <div class="field"><label id="typeFilterLabel" for="typeFilterInput">Page type</label><div class="combo" id="typeFilterCombo"></div><select id="typeFilter" multiple class="combo-source"></select><div class="hint">Type to filter · narrows to selected categories</div></div>
+      <div class="field"><label id="pageIdFilterLabel" for="pageIdFilter">Page ID / code</label><select id="pageIdFilter"></select></div>
+      <div class="field"><label id="departmentFilterLabel" for="departmentFilter">Department</label><select id="departmentFilter"></select></div>
+      <div class="field"><label for="titleSearch">Title contains</label><input id="titleSearch" type="search" placeholder="Filter title" /></div>
+      <div class="field"><label for="dateFromFilter">From date</label><input id="dateFromFilter" type="date" /></div>
+      <div class="field"><label for="dateToFilter">To date</label><input id="dateToFilter" type="date" /></div>
+      <div class="field"><label>Trend period</label><div class="tabs" id="periodTabs"><button data-period="day">Daily</button><button data-period="week">Weekly</button><button data-period="month">Monthly</button></div><select id="trendGranularity" class="hidden"><option value="day">Daily</option><option value="week">Weekly</option><option value="month">Monthly</option></select></div>
+      <div class="wide-actions">
+        <div class="row">
+          <div class="checkline"><input id="excludeUsersToggle" type="checkbox" checked /><label for="excludeUsersToggle">Exclude listed users</label></div>
+          <span id="excludedUserStatus" class="muted small">0 views filtered</span>
+          <span id="activeDrill" class="muted small">No drill-down selected.</span>
+        </div>
+        <div class="row"><button id="resetFiltersBtn">Reset</button><button id="clearDrillBtn">Clear drill</button><button id="exportPageIdsBtn">Export page list</button></div>
+      </div>
+    </div>
+
+    <div class="summary"><div><span>Filtered page views</span><strong id="totalViews" class="num">0</strong></div><div><span>Share of all page views</span><strong id="shareViews" class="num">0%</strong></div><div><span>Unique pages</span><strong id="uniquePages" class="num">0</strong></div><div><span>Excluded by user list</span><strong id="excludedViews" class="num">0</strong></div><div><span>Period range</span><strong id="periodRange">—</strong></div></div>
+
+    <section class="section">
+      <div class="section-head"><h2>Views over time</h2><div class="sub">Stacked by page category, for the current filtered view</div></div>
+      <div class="section-body"><div class="chart-wrap"><canvas id="trendChart" width="1300" height="580"></canvas><div id="trendTooltip" class="chart-tooltip hidden"></div></div></div>
+    </section>
+
+    <section class="section" id="mostViewedSection">
+      <div class="section-head"><h2>Most viewed pages</h2><div class="row"><label class="small" for="topLimit" style="margin:0">Rows</label><input id="topLimit" type="number" min="1" max="10000" value="50" style="width:86px" /></div></div>
+      <div class="table-wrap"><table id="topPagesTable"></table></div>
+    </section>
+
+    <section class="section hidden" id="selectionPanel">
+      <div class="section-head"><h2 id="selectionTitle">Underlying page views</h2><button id="clearSelectionBtn">Clear</button></div>
+      <div class="table-wrap"><table id="selectionTable"></table></div>
+    </section>
+
+    <details open>
+      <summary>Pareto analysis</summary>
+      <div class="details-inner"><div class="chart-wrap"><canvas id="paretoChart" width="1300" height="560"></canvas><div id="paretoTooltip" class="chart-tooltip hidden"></div></div></div>
+    </details>
+
+    <details open>
+      <summary>Top movers</summary>
+      <div class="details-inner"><div id="moverPeriodLabel" class="muted small" style="margin-bottom:10px"></div><div class="two-cols"><div><p class="mini-head up">Rising</p><table id="moversUpTable"></table></div><div><p class="mini-head down">Falling</p><table id="moversDownTable"></table></div></div></div>
+    </details>
+
+    <details>
+      <summary>Saved views</summary>
+      <div class="details-inner saved-grid">
+        <div><label for="favouriteViewSelect">Saved view</label><select id="favouriteViewSelect"><option value="">No saved views yet</option></select></div>
+        <div><label for="favouriteViewName">View name</label><input id="favouriteViewName" type="search" placeholder="Name this view" /></div>
+        <button id="saveFavouriteBtn">Save</button><button id="applyFavouriteBtn">Apply</button><button id="setDefaultFavouriteBtn">Set default</button>
+        <button id="clearDefaultFavouriteBtn">Use fallback</button><button id="deleteFavouriteBtn" class="danger">Delete</button><button id="exportFavouritesBtn">Export views</button>
+        <div><label for="importFavouritesInput">Import JSON</label><input id="importFavouritesInput" type="file" accept="application/json,.json" /></div>
+        <div><div id="defaultViewPill" class="muted small">Default: hard-coded fallback</div><div id="viewStatus" class="muted small status"></div></div>
+      </div>
+    </details>
+
+    <section class="section" id="topUsersSection">
+      <div class="section-head"><div><h2>Top users</h2><div class="sub">Ranked by total views for the current filtered view</div></div><div class="row"><label class="small" for="topUserLimit" style="margin:0">Rows</label><input id="topUserLimit" type="number" min="1" max="10000" value="50" style="width:86px" /></div></div>
+      <div class="table-wrap"><table id="topUsersTable"></table></div>
+    </section>
+  </section>
+</main>
+
+<dialog id="uploadDialog">
+  <div class="modal-head"><strong>Load data</strong><button id="closeUploadBtn">Close</button></div>
+  <div class="modal-body stack">
+    <div id="dropZone" class="drop-zone"><p>Drop a page-views CSV here, or choose one.</p><label class="button primary" for="csvInput">Choose CSV</label><input id="csvInput" type="file" accept=".csv,text/csv" /></div>
+    <div class="row between"><span class="muted small">Reload the export bundled with this page.</span><button id="loadDefaultBtn">Reload default data</button></div>
+    <details style="margin:0;box-shadow:none"><summary>Excluded users (optional)</summary><div class="details-inner stack"><div><label for="excludedUsersInput">Excluded-users text file</label><input id="excludedUsersInput" type="file" accept=".txt,text/plain" /><div class="hint">One match string per line, case-insensitive. On the server this is set for you — you only need this to try a different list locally.</div></div><div class="row between"><span id="excludedUsersFileStatus" class="muted small">No excluded-user file loaded yet.</span><button id="loadExcludedUsersBtn">Reload list</button></div></div></details>
+  </div>
+</dialog>
+
+<script>
+/**********************************************************************
+ * CSV COLUMN LABELS
+ * Change these labels if your input CSV uses different column names.
+ * The page code column is optional and may be blank.
+ * The user column is optional, but required if you want user exclusions.
+ * Change COLUMN_LABELS.user to match your CSV, for example 'Username'.
+ **********************************************************************/
+const COLUMN_LABELS = {
+  pageCategory: 'Page Group',
+  pageType: 'Page Type',
+  pageId: 'Page ID',
+  pageCode: 'Page Code',
+  pageTitle: 'Page Title',
+  department: 'Department',
+  user: 'User', // Change to 'Username' or your CSV's username column label if needed.
+  viewDate: 'Search Date'
+};
+
+/**********************************************************************
+ * ADJUSTABLE FILE AND LINK SETTINGS
+ **********************************************************************/
+const PAGE_URL_PREFIX = 'https://intranet.example.gov.au/pages/';
+const DEFAULT_DATA_FILENAMES = ['default.zip', 'default.csv'];
+const DEFAULT_ZIP_CSV_FILENAME = 'default.csv';
+const EXCLUDED_USERS_FILENAME = 'excluded-users.txt';
+const EXCLUDED_USERS_ENABLED_BY_DEFAULT = true;
+
+/**********************************************************************
+ * USER-SPECIFIED DATE FORMAT
+ * Supported tokens: d, dd, m, mm, mmm, mmmm, yy, yyyy.
+ **********************************************************************/
+const DATE_FORMAT = 'yyyy-mm-dd';
+// const DATE_FORMAT = 'dd/mm/yyyy';      // 06/07/2026
+// const DATE_FORMAT = 'dd-mmm-yyyy';     // 06-Jan-2026
+// const DATE_FORMAT = 'd mmmm yyyy';     // 6 January 2026
+// const DATE_FORMAT = 'dd mmmm yyyy';    // 06 January 2026
+// const DATE_FORMAT = 'auto';            // Tries ISO, AU dd/mm, month names, then browser parsing.
+
+/**********************************************************************
+ * DEFAULT VIEW CONFIG
+ * Used when no browser-saved default favourite has been selected.
+ **********************************************************************/
+const DEFAULT_VIEW_CONFIG = {
+  filters: { pageCategories:[], pageTypes:[], pageId:'', department:'', titleSearch:'', dateFrom:'', dateTo:'', excludeUsers: EXCLUDED_USERS_ENABLED_BY_DEFAULT },
+  topLimit: 50,
+  topUserLimit: 50,
+  trendGranularity: 'week',
+  drill: { field:null, value:null }
+};
+
+const VIEW_STORAGE_KEY = 'pageViewsDashboard.favouriteViews.v2';
+const DEFAULT_VIEW_STORAGE_KEY = 'pageViewsDashboard.defaultFavouriteName.v2';
+const LEGACY_VIEW_STORAGE_KEY = 'pageViewsDashboard.favouriteViews.v1';
+let rawRows=[], excludedUsers=[], drill={field:null,value:null}, chartHits={trend:[],pareto:[]}, activeTooltip=null;
+const combos={};
+const $=id=>document.getElementById(id);
+const fmt=n=>Number(n||0).toLocaleString('en-AU');
+const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+const csvEsc=v=>{const t=String(v??'');return /[",\n\r]/.test(t)?`"${t.replaceAll('"','""')}"`:t};
+const MONTHS={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,sept:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
+const CATEGORY_COLOURS=['#2563a8','#0e8f8f','#6d5bd0','#1f7a53','#c2711a','#3f7ec2','#4a5568','#a03b8f','#0f6f9c','#7a8b1f','#b23a3a','#5a6b8c'];
+const AXIS_INK='#6b7580', GRID_LINE='#eef1f4', AXIS_LINE='#d3dae1', BAR_BLUE='#2563a8', PARETO_AMBER='#b26a12';
+
+init();
+function init(){
+  $('categoryFilterLabel').textContent='Page category'; $('typeFilterLabel').textContent=COLUMN_LABELS.pageType; $('pageIdFilterLabel').textContent=`${COLUMN_LABELS.pageId} / ${COLUMN_LABELS.pageCode}`; $('departmentFilterLabel').textContent=COLUMN_LABELS.department;
+  initCombo('categoryFilter','categoryFilterCombo','Search categories…');
+  initCombo('typeFilter','typeFilterCombo',`Search ${COLUMN_LABELS.pageType.toLowerCase()}…`);
+  ['categoryFilter','typeFilter','pageIdFilter','departmentFilter','titleSearch','dateFromFilter','dateToFilter','topLimit','topUserLimit','trendGranularity','excludeUsersToggle'].forEach(id=>{$(id).addEventListener('input',renderDashboard);$(id).addEventListener('change',renderDashboard)});
+  $('categoryFilter').addEventListener('change',()=>{updateTypeOptions(true);renderDashboard();});
+  document.querySelectorAll('#periodTabs button').forEach(b=>b.addEventListener('click',()=>{ $('trendGranularity').value=b.dataset.period; renderDashboard(); }));
+  $('openUploadBtn').onclick=()=>$('uploadDialog').showModal(); $('closeUploadBtn').onclick=()=>$('uploadDialog').close();
+  $('loadDefaultBtn').onclick=()=>loadDefaultData(true); $('loadExcludedUsersBtn').onclick=()=>loadExcludedUsersDefault(true);
+  $('resetFiltersBtn').onclick=()=>{applyViewConfig(DEFAULT_VIEW_CONFIG);renderDashboard();showViewStatus('Reset to fallback view.')};
+  $('clearDrillBtn').onclick=()=>{drill={field:null,value:null};renderDashboard()}; $('clearSelectionBtn').onclick=()=>renderSelection(null,'');
+  $('exportPageIdsBtn').onclick=exportTopPageIds; $('saveFavouriteBtn').onclick=saveFavouriteView; $('applyFavouriteBtn').onclick=applySelectedFavourite; $('setDefaultFavouriteBtn').onclick=setSelectedFavouriteAsDefault; $('clearDefaultFavouriteBtn').onclick=clearDefaultFavourite; $('deleteFavouriteBtn').onclick=deleteSelectedFavourite; $('exportFavouritesBtn').onclick=exportFavouriteViews; $('importFavouritesInput').onchange=importFavouriteViews;
+  $('favouriteViewSelect').onchange=()=>{$('favouriteViewName').value=$('favouriteViewSelect').value||''};
+  wireChart('trendChart','trend','trendTooltip'); wireChart('paretoChart','pareto','paretoTooltip');
+  const input=$('csvInput'),dz=$('dropZone'); input.onchange=e=>{const f=e.target.files?.[0];if(f)loadDataFile(f)};
+  $('excludedUsersInput').onchange=e=>{const f=e.target.files?.[0];if(f)loadExcludedUsersFile(f)};
+  ['dragenter','dragover'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add('dragover')}));
+  ['dragleave','drop'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.remove('dragover')}));
+  dz.addEventListener('drop',e=>{const f=e.dataTransfer.files?.[0];if(!f)return;if(!isCsvFileName(f.name)&&!isZipFileName(f.name))return showError('That file isn\u2019t a CSV. Choose a page-views CSV export.');loadDataFile(f)});
+  renderFavouriteViews(); applyViewConfig(DEFAULT_VIEW_CONFIG); updatePeriodTabs();
+  loadExcludedUsersDefault(false).finally(()=>loadDefaultData(false));
+}
+
+function showError(message){
+  const el=$('errorBox');
+  if(el) el.textContent=message||'';
+}
+
+async function loadDefaultData(manual){
+  const errors=[];
+  for(const name of DEFAULT_DATA_FILENAMES){
+    try{
+      const res=await fetch(name,{cache:'no-store'});
+      if(!res.ok)throw new Error(`${name} was not found.`);
+      if(isZipFileName(name)){
+        await loadZipBuffer(await res.arrayBuffer(),name);
+      }else{
+        loadCsvText(await res.text(),name);
+      }
+      return;
+    }catch(e){errors.push(e.message||String(e));}
+  }
+  const message=`Could not load ${DEFAULT_DATA_FILENAMES.join(' or ')}. Automatic loading may be blocked when opening the HTML directly from disk. Use Load data, or serve the folder with a local web server.`;
+  if(manual)showError(errors.join(' '));else{$('fileStatus').textContent='No CSV loaded';showError(message)}
+}
+async function loadDataFile(file){
+  try{
+    if(isZipFileName(file.name)){
+      await loadZipBuffer(await file.arrayBuffer(),file.name);
+    }else if(isCsvFileName(file.name)){
+      loadCsvText(await file.text(),file.name);
+    }else{
+      showError('Please choose a CSV or ZIP file.');
+    }
+  }catch(e){showError(e.message||String(e));}
+}
+function isCsvFileName(name){return String(name||'').toLowerCase().endsWith('.csv')}
+function isZipFileName(name){return String(name||'').toLowerCase().endsWith('.zip')}
+async function loadZipBuffer(buffer,zipName){
+  const entries=await unzipEntries(buffer);
+  const files=entries.filter(e=>!e.name.endsWith('/'));
+  const csvEntry=chooseZipCsv(files);
+  if(!csvEntry)throw new Error(`${zipName} does not contain a CSV file.`);
+  const excluded=files.find(e=>e.name.split('/').pop().toLowerCase()===EXCLUDED_USERS_FILENAME.toLowerCase());
+  if(excluded)setExcludedUsers(excluded.text,`${zipName} / ${excluded.name}`);
+  loadCsvText(csvEntry.text,`${zipName} / ${csvEntry.name}`);
+}
+function chooseZipCsv(files){
+  const csvs=files.filter(e=>isCsvFileName(e.name));
+  if(!csvs.length)return null;
+  return csvs.find(e=>e.name.split('/').pop().toLowerCase()===DEFAULT_ZIP_CSV_FILENAME.toLowerCase())||csvs[0];
+}
+async function unzipEntries(buffer){
+  const bytes=new Uint8Array(buffer),view=new DataView(buffer),entries=[],dec=new TextDecoder('utf-8');
+  let eocd=-1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-66000);i--){
+    if(view.getUint32(i,true)===0x06054b50){eocd=i;break;}
+  }
+  if(eocd<0)throw new Error('This does not look like a standard ZIP file.');
+  const total=view.getUint16(eocd+10,true),cdOffset=view.getUint32(eocd+16,true);
+  if(cdOffset===0xffffffff)throw new Error('Zip64 files are not supported.');
+  let ptr=cdOffset;
+  for(let i=0;i<total;i++){
+    if(view.getUint32(ptr,true)!==0x02014b50)throw new Error('Could not read the ZIP central directory.');
+    const method=view.getUint16(ptr+10,true),compSize=view.getUint32(ptr+20,true),nameLen=view.getUint16(ptr+28,true),extraLen=view.getUint16(ptr+30,true),commentLen=view.getUint16(ptr+32,true),localOffset=view.getUint32(ptr+42,true);
+    if(compSize===0xffffffff||localOffset===0xffffffff)throw new Error('Zip64 files are not supported.');
+    const name=dec.decode(bytes.slice(ptr+46,ptr+46+nameLen));
+    ptr+=46+nameLen+extraLen+commentLen;
+    if(name.endsWith('/')){entries.push({name,text:''});continue;}
+    if(view.getUint32(localOffset,true)!==0x04034b50)throw new Error(`Could not read ZIP entry: ${name}`);
+    const localNameLen=view.getUint16(localOffset+26,true),localExtraLen=view.getUint16(localOffset+28,true),dataStart=localOffset+30+localNameLen+localExtraLen;
+    const compressed=bytes.slice(dataStart,dataStart+compSize);
+    let data;
+    if(method===0)data=compressed;
+    else if(method===8)data=await inflateRaw(compressed);
+    else throw new Error(`Unsupported ZIP compression method ${method} for ${name}. Use normal deflate or no compression.`);
+    entries.push({name,text:dec.decode(data)});
+  }
+  return entries;
+}
+async function inflateRaw(data){
+  if(!('DecompressionStream' in window))throw new Error('This browser cannot read compressed ZIP files without a helper library. Use a current browser, or create the ZIP with no compression.');
+  const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+function loadCsvText(text,name){
+  showError('');
+  try{
+    const cleanText=String(text||'').replace(/^\uFEFF/,'');
+    rawRows=normaliseRows(parseCsv(cleanText));
+    if(!rawRows.length)throw new Error('No page view rows found.');
+    populateFilters(rawRows);
+    applyOpeningView();
+    $('dashboard').classList.remove('hidden');
+    $('emptyState').classList.add('hidden');
+    $('fileStatus').textContent=name;
+    const dialog=$('uploadDialog');
+    if(dialog&&dialog.open)dialog.close();
+    renderDashboard();
+  }catch(e){
+    rawRows=[];
+    $('dashboard').classList.add('hidden');
+    $('emptyState').classList.remove('hidden');
+    showError(e.message||String(e));
+    $('fileStatus').textContent='No CSV loaded';
+  }
+}
+async function loadExcludedUsersDefault(manual){try{const res=await fetch(EXCLUDED_USERS_FILENAME,{cache:'no-store'});if(!res.ok)throw new Error(`${EXCLUDED_USERS_FILENAME} was not found.`);setExcludedUsers(await res.text(),EXCLUDED_USERS_FILENAME)}catch(e){if(manual){$('excludedUsersFileStatus').textContent=e.message||String(e)}else{$('excludedUsersFileStatus').textContent='No excluded-user file loaded.'}}}
+async function loadExcludedUsersFile(file){try{setExcludedUsers(await file.text(),file.name)}catch(e){$('excludedUsersFileStatus').textContent='Could not read excluded-user file.'}}
+function setExcludedUsers(text,name){excludedUsers=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!x.startsWith('#')).map(x=>x.toLowerCase());$('excludedUsersFileStatus').textContent=`${name}: ${fmt(excludedUsers.length)} excluded match string${excludedUsers.length===1?'':'s'} loaded.`;if(rawRows.length)renderDashboard()}
+
+function parseCsv(text){const rows=[];let row=[],field='',q=false;for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];if(c==='"'){if(q&&n==='"'){field+='"';i++}else q=!q}else if(c===','&&!q){row.push(field);field=''}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(field);if(row.some(x=>x.trim()!==''))rows.push(row);row=[];field=''}else field+=c}row.push(field);if(row.some(x=>x.trim()!==''))rows.push(row);if(!rows.length)return[];const h=rows[0].map(x=>x.trim());return rows.slice(1).map(v=>{const o={};h.forEach((k,i)=>o[k]=(v[i]??'').trim());return o})}
+function normaliseRows(rows){const avail=rows[0]?Object.keys(rows[0]):[],required=[COLUMN_LABELS.pageCategory,COLUMN_LABELS.pageType,COLUMN_LABELS.pageTitle,COLUMN_LABELS.department,COLUMN_LABELS.viewDate];const miss=required.filter(x=>!avail.includes(x));const hasId=avail.includes(COLUMN_LABELS.pageId),hasCode=avail.includes(COLUMN_LABELS.pageCode),hasUser=avail.includes(COLUMN_LABELS.user);if(!hasId&&!hasCode)miss.push(`${COLUMN_LABELS.pageId} or ${COLUMN_LABELS.pageCode}`);if(miss.length)throw new Error(`Missing required CSV column(s): ${miss.join(', ')}.`);return rows.map(row=>{const d=parseDate(row[COLUMN_LABELS.viewDate]),pageId=hasId?(row[COLUMN_LABELS.pageId]||''):'',pageCode=hasCode?(row[COLUMN_LABELS.pageCode]||''):'';return{pageId,pageCode,pageKey:pageId||pageCode||'(blank)',pageCategory:row[COLUMN_LABELS.pageCategory]||'(blank)',pageType:row[COLUMN_LABELS.pageType]||'(blank)',pageTitle:row[COLUMN_LABELS.pageTitle]||'(blank)',department:row[COLUMN_LABELS.department]||'(blank)',user:hasUser?(row[COLUMN_LABELS.user]||''):'',viewDateText:row[COLUMN_LABELS.viewDate]||'',viewDate:d,viewDay:d?iso(d):'(invalid date)'}})}
+function parseDate(v){if(!v)return null;const t=String(v).trim();if(!t)return null;if(DATE_FORMAT==='auto')return parseDateAuto(t);return parseDateWithFormat(t,DATE_FORMAT)||parseDateAuto(t)}
+function parseDateAuto(t){return parseDateWithFormat(t,'yyyy-mm-dd')||parseDateWithFormat(t,'yyyy/mm/dd')||parseDateWithFormat(t,'dd/mm/yyyy')||parseDateWithFormat(t,'d/m/yyyy')||parseDateWithFormat(t,'dd-mmm-yyyy')||parseDateWithFormat(t,'d mmm yyyy')||parseDateWithFormat(t,'d mmmm yyyy')||parseDateWithFormat(t,'dd mmmm yyyy')||(()=>{const d=new Date(t);return Number.isNaN(d.getTime())?null:d})()}
+function parseDateWithFormat(text,format){const token=/(yyyy|yy|mmmm|mmm|dd|d|mm|m)/g;let order=[],pat='^',last=0,m;while((m=token.exec(format))){pat+=escapeRegExp(format.slice(last,m.index));const tk=m[0];order.push(tk);pat+=tk==='yyyy'?'(\\d{4})':tk==='yy'?'(\\d{2})':(tk==='mmm'||tk==='mmmm')?'([A-Za-z]+)':'(\\d{1,2})';last=m.index+tk.length}pat+=escapeRegExp(format.slice(last))+'(?:[ T]+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?)?$';const r=text.match(new RegExp(pat,'i'));if(!r)return null;let day=1,month=0,year=NaN;order.forEach((tk,i)=>{const v=r[i+1];if(tk==='yyyy')year=+v;else if(tk==='yy')year=+v<70?2000+(+v):1900+(+v);else if(tk==='d'||tk==='dd')day=+v;else if(tk==='m'||tk==='mm')month=(+v)-1;else month=MONTHS[String(v).toLowerCase()]});const h=+(r[order.length+1]||0),mi=+(r[order.length+2]||0),s=+(r[order.length+3]||0);if(!Number.isInteger(month)||!year)return null;const d=new Date(year,month,day,h,mi,s);return d.getFullYear()===year&&d.getMonth()===month&&d.getDate()===day?d:null}
+function escapeRegExp(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}function iso(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}function labelDate(d){return d?d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'—'}
+
+function populateFilters(rows){
+  setMultiOptions('categoryFilter',[...new Set(rows.map(r=>r.pageCategory))].sort(),[]);
+  updateTypeOptions(false);
+  setSingleOptions('pageIdFilter',[...new Set(rows.map(r=>r.pageKey))].sort(),pageKeyLabel);
+  setSingleOptions('departmentFilter',[...new Set(rows.map(r=>r.department))].sort());
+  const dates=rows.map(r=>r.viewDay).filter(x=>x&&x!=='(invalid date)').sort();
+  const min=dates[0]||'', max=dates[dates.length-1]||'';
+  ['dateFromFilter','dateToFilter'].forEach(id=>{ $(id).min=min; $(id).max=max; });
+  $('dateFromFilter').value=min; $('dateToFilter').value=max;
+}
+function updateTypeOptions(clearInvalid){const selected=selectedValues('typeFilter'),cats=selectedValues('categoryFilter');const source=cats.length?rawRows.filter(r=>cats.includes(r.pageCategory)):rawRows;const values=[...new Set(source.map(r=>r.pageType))].sort();const keep=clearInvalid?selected.filter(v=>values.includes(v)):selected;setMultiOptions('typeFilter',values,keep)}
+function setMultiOptions(id,values,selected){const set=new Set(selected||[]);$(id).innerHTML=values.map(v=>`<option value="${esc(v)}"${set.has(v)?' selected':''}>${esc(v)}</option>`).join('');if(combos[id])combos[id].refresh()}
+function setSingleOptions(id,values,labelFn){const cur=$(id).value;$(id).innerHTML='<option value="">All</option>'+values.map(v=>`<option value="${esc(v)}">${esc(labelFn?labelFn(v):v)}</option>`).join('');if([...$(id).options].some(o=>o.value===cur))$(id).value=cur}
+function pageKeyLabel(key){const r=rawRows.find(x=>x.pageKey===key)||{};const id=r.pageId||'', code=r.pageCode||'';return [r.pageTitle||key,id&&`ID: ${id}`,code&&`Code: ${code}`].filter(Boolean).join(' — ')}
+/* Typeahead multiselect bound to a hidden <select multiple> (the source of truth).
+   It reads options/selection from the select, and writes back + fires 'change'. */
+function initCombo(selectId,comboId,placeholder){
+  const sel=$(selectId),root=$(comboId);
+  root.innerHTML=`<div class="combo-control"><input class="combo-input" id="${selectId}Input" type="text" autocomplete="off" placeholder="${esc(placeholder)}" aria-expanded="false" role="combobox" aria-autocomplete="list"><button type="button" class="combo-clear" title="Clear selection" aria-label="Clear selection">×</button><span class="combo-caret"></span></div><div class="combo-menu" role="listbox"></div>`;
+  const control=root.querySelector('.combo-control'),input=root.querySelector('.combo-input'),menu=root.querySelector('.combo-menu'),clearBtn=root.querySelector('.combo-clear');
+  let active=-1;
+  const opts=()=>[...sel.options].map(o=>({value:o.value,selected:o.selected}));
+  const selectedVals=()=>opts().filter(o=>o.selected).map(o=>o.value);
+  const commit=()=>{sel.dispatchEvent(new Event('change',{bubbles:true}))};
+  function setSelected(v,on){[...sel.options].forEach(o=>{if(o.value===v)o.selected=on});renderChips();renderMenu();commit()}
+  function toggle(v){const o=[...sel.options].find(x=>x.value===v);if(o)setSelected(v,!o.selected)}
+  function clearAll(){[...sel.options].forEach(o=>o.selected=false);input.value='';renderChips();renderMenu();commit();input.focus()}
+  function renderChips(){
+    control.querySelectorAll('.combo-chip').forEach(c=>c.remove());
+    const chosen=selectedVals();
+    root.classList.toggle('has-sel',chosen.length>0);
+    chosen.slice().reverse().forEach(v=>{
+      const chip=document.createElement('span');chip.className='combo-chip';
+      chip.innerHTML=`<span>${esc(v)}</span><button type="button" tabindex="-1" aria-label="Remove ${esc(v)}">×</button>`;
+      chip.querySelector('button').onclick=e=>{e.stopPropagation();setSelected(v,false);input.focus()};
+      control.insertBefore(chip,input);
+    });
+  }
+  function filtered(){const q=input.value.trim().toLowerCase();return opts().filter(o=>o.value.toLowerCase().includes(q))}
+  function renderMenu(){
+    const list=filtered();
+    if(active>=list.length)active=list.length-1;
+    menu.innerHTML=list.length?list.map((o,i)=>`<div class="combo-opt${o.selected?' sel':''}${i===active?' active':''}" role="option" aria-selected="${o.selected}" data-val="${esc(o.value)}"><span class="box"></span><span>${esc(o.value)}</span></div>`).join(''):`<div class="combo-empty">No matches</div>`;
+    menu.querySelectorAll('.combo-opt').forEach(el=>{el.onmousedown=e=>{e.preventDefault();toggle(el.dataset.val);input.value='';input.focus();renderMenu()};el.onmouseenter=()=>{active=[...menu.children].indexOf(el);highlight()}});
+  }
+  function highlight(){menu.querySelectorAll('.combo-opt').forEach((el,i)=>el.classList.toggle('active',i===active))}
+  function open(){root.classList.add('open');input.setAttribute('aria-expanded','true');renderMenu()}
+  function close(){root.classList.remove('open');input.setAttribute('aria-expanded','false');active=-1}
+  control.addEventListener('mousedown',e=>{if(e.target===input||e.target.closest('.combo-chip'))return;e.preventDefault();root.classList.contains('open')?input.focus():(input.focus(),open())});
+  input.addEventListener('focus',open);
+  input.addEventListener('input',()=>{active=filtered().length?0:-1;open();renderMenu()});
+  clearBtn.onclick=e=>{e.stopPropagation();clearAll()};
+  input.addEventListener('keydown',e=>{
+    const list=filtered();
+    if(e.key==='ArrowDown'){e.preventDefault();if(!root.classList.contains('open'))open();active=Math.min(active+1,list.length-1);highlight();scrollActive()}
+    else if(e.key==='ArrowUp'){e.preventDefault();active=Math.max(active-1,0);highlight();scrollActive()}
+    else if(e.key==='Enter'){if(root.classList.contains('open')&&active>=0&&list[active]){e.preventDefault();toggle(list[active].value);input.value='';renderMenu()}}
+    else if(e.key==='Backspace'&&!input.value){const chosen=selectedVals();if(chosen.length){setSelected(chosen[chosen.length-1],false)}}
+    else if(e.key==='Escape'){if(root.classList.contains('open')){e.preventDefault();close()}}
+  });
+  function scrollActive(){const el=menu.querySelectorAll('.combo-opt')[active];if(el)el.scrollIntoView({block:'nearest'})}
+  document.addEventListener('mousedown',e=>{if(!root.contains(e.target))close()});
+  const api={refresh(){renderChips();renderMenu()}};
+  combos[selectId]=api;renderChips();
+  return api;
+}
+function selectedValues(id){return [...$(id).selectedOptions].map(o=>o.value).filter(Boolean)}
+function setSelectedValues(id,values){const set=new Set(asArray(values));[...$(id).options].forEach(o=>o.selected=set.has(o.value));if(combos[id])combos[id].refresh()}
+function asArray(v){if(Array.isArray(v))return v.filter(Boolean);return v?[v]:[]}
+
+function isExcludedUser(row){const user=String(row.user||'').toLowerCase();return !!(user&&excludedUsers.some(match=>match&&user.includes(match)))}
+function baseRowsForCurrentFilters(){let rows=getDateRangeRows(rawRows.slice());const cats=selectedValues('categoryFilter'),types=selectedValues('typeFilter'),pageId=$('pageIdFilter').value,department=$('departmentFilter').value,title=$('titleSearch').value.trim().toLowerCase();if(cats.length)rows=rows.filter(r=>cats.includes(r.pageCategory));if(types.length)rows=rows.filter(r=>types.includes(r.pageType));if(pageId)rows=rows.filter(r=>r.pageKey===pageId);if(department)rows=rows.filter(r=>r.department===department);if(title)rows=rows.filter(r=>r.pageTitle.toLowerCase().includes(title));if(drill.field)rows=rows.filter(r=>r[drill.field]===drill.value);return rows}
+function getDateRangeRows(rows){const from=$('dateFromFilter').value,to=$('dateToFilter').value;return rows.filter(r=>(!from||r.viewDay>=from)&&(!to||r.viewDay<=to))}
+function getFilteredRows(){let rows=baseRowsForCurrentFilters();if($('excludeUsersToggle').checked&&excludedUsers.length)rows=rows.filter(r=>!isExcludedUser(r));return rows}
+function getBaselineRows(){let rows=getDateRangeRows(rawRows.slice());if($('excludeUsersToggle').checked&&excludedUsers.length)rows=rows.filter(r=>!isExcludedUser(r));return rows}
+function getExcludedCount(){const base=baseRowsForCurrentFilters();return $('excludeUsersToggle').checked?base.filter(isExcludedUser).length:0}
+
+function renderDashboard(){if(!rawRows.length)return;updateTypeOptions(false);updatePeriodTabs();const rows=getFilteredRows(),periodAll=getBaselineRows(),excludedCount=getExcludedCount();$('totalViews').textContent=fmt(rows.length);$('shareViews').textContent=periodAll.length?`${((rows.length/periodAll.length)*100).toFixed(1)}%`:'0%';$('uniquePages').textContent=fmt(new Set(rows.map(r=>r.pageKey)).size);$('excludedViews').textContent=fmt(excludedCount);$('excludedUserStatus').textContent=excludedUsers.length?`${fmt(excludedCount)} view${excludedCount===1?'':'s'} filtered by ${fmt(excludedUsers.length)} username match string${excludedUsers.length===1?'':'s'}`:'No excluded user match strings loaded';const dates=rows.map(r=>r.viewDate).filter(Boolean).sort((a,b)=>a-b);$('periodRange').textContent=dates.length?`${labelDate(dates[0])} – ${labelDate(dates[dates.length-1])}`:'—';$('activeDrill').innerHTML=drill.field?`<span class="drill-chip">Drill-down: ${esc(fieldLabel(drill.field))} = ${esc(drill.value)} <button type="button" id="drillXBtn">×</button></span>`:'No drill-down selected.';const dx=$('drillXBtn');if(dx)dx.onclick=()=>{drill={field:null,value:null};renderDashboard()};drawTrendChart(rows);renderTopPages(rows);drawParetoChart(rows);renderMovers(rows);renderFavouriteViews();renderTopUsers(rows)}
+function updatePeriodTabs(){document.querySelectorAll('#periodTabs button').forEach(b=>b.classList.toggle('active',b.dataset.period===$('trendGranularity').value))}
+function fieldLabel(f){return{pageKey:`${COLUMN_LABELS.pageId} / ${COLUMN_LABELS.pageCode}`,pageId:COLUMN_LABELS.pageId,pageCategory:'Page category',pageType:COLUMN_LABELS.pageType,department:COLUMN_LABELS.department,user:COLUMN_LABELS.user}[f]||f}
+function periodKey(d,g){if(!d)return'(invalid)';if(g==='month')return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;if(g==='week'){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()),day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);return iso(x)}return iso(d)}
+function periodLabel(k,g){if(k==='(invalid)')return k;if(g==='month'){const[y,m]=k.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString('en-AU',{month:'short',year:'numeric'})}if(g==='week')return`Week of ${labelDate(parseDateWithFormat(k,'yyyy-mm-dd'))}`;return labelDate(parseDateWithFormat(k,'yyyy-mm-dd'))}
+function buckets(rows,g){const m=new Map();rows.forEach(r=>{const k=periodKey(r.viewDate,g);if(k==='(invalid)')return;if(!m.has(k))m.set(k,{key:k,label:periodLabel(k,g),count:0,rows:[]});const b=m.get(k);b.count++;b.rows.push(r)});return m}
+
+function resizeCanvasToDisplaySize(canvas){const ratio=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect(),w=Math.round(rect.width*ratio),h=Math.round(rect.height*ratio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}return ratio}
+function drawTrendChart(filtered){const canvas=$('trendChart'),ctx=canvas.getContext('2d'),ratio=resizeCanvasToDisplaySize(canvas),g=$('trendGranularity').value;chartHits.trend=[];ctx.clearRect(0,0,canvas.width,canvas.height);ctx.font=`${12*ratio}px ui-sans-serif, sans-serif`;const bm=buckets(filtered,g),keys=[...bm.keys()].sort();const p={left:58*ratio,right:170*ratio,top:18*ratio,bottom:74*ratio},w=canvas.width-p.left-p.right,h=canvas.height-p.top-p.bottom;if(!keys.length){note(ctx,'No valid view dates to chart.',p);return}const categories=summarise(filtered,'pageCategory').map(x=>x.value);const categoryColourOrder=[...new Set(rawRows.map(r=>r.pageCategory))].sort();const categoryColours=new Map(categoryColourOrder.map((cat,i)=>[cat,CATEGORY_COLOURS[i%CATEGORY_COLOURS.length]]));const byPeriod=new Map();keys.forEach(k=>byPeriod.set(k,{key:k,label:periodLabel(k,g),total:0,cats:new Map(),rows:[]}));filtered.forEach(r=>{const k=periodKey(r.viewDate,g),b=byPeriod.get(k);if(!b)return;b.total++;b.rows.push(r);if(!b.cats.has(r.pageCategory))b.cats.set(r.pageCategory,{count:0,rows:[]});const c=b.cats.get(r.pageCategory);c.count++;c.rows.push(r)});const pts=keys.map(k=>byPeriod.get(k)),max=Math.max(...pts.map(x=>x.total),1);drawGrid(ctx,p,w,h,max,ratio);const step=w/pts.length,xFor=i=>p.left+i*step+step/2,stacks=new Map();categories.forEach(c=>stacks.set(c,[]));pts.forEach((pt,i)=>{let acc=0;categories.forEach(cat=>{const info=pt.cats.get(cat)||{count:0,rows:[]};const y0=p.top+h-(acc/max*h);acc+=info.count;const y1=p.top+h-(acc/max*h);stacks.get(cat).push({x:xFor(i),y0,y1,count:info.count,rows:info.rows,label:pt.label,total:pt.total,category:cat});});});categories.forEach(cat=>{const arr=stacks.get(cat),colour=categoryColours.get(cat)||CATEGORY_COLOURS[0];ctx.beginPath();arr.forEach((pt,i)=>i?ctx.lineTo(pt.x,pt.y1):ctx.moveTo(pt.x,pt.y1));[...arr].reverse().forEach(pt=>ctx.lineTo(pt.x,pt.y0));ctx.closePath();ctx.fillStyle=hexToRgba(colour,.18);ctx.fill();ctx.strokeStyle=colour;ctx.lineWidth=2*ratio;ctx.beginPath();arr.forEach((pt,i)=>i?ctx.lineTo(pt.x,pt.y1):ctx.moveTo(pt.x,pt.y1));ctx.stroke();arr.forEach(pt=>{if(!pt.count)return;const pct=pt.total?(pt.count/pt.total*100):0;chartHits.trend.push({x:pt.x-12*ratio,y:pt.y1,w:24*ratio,h:Math.max(10*ratio,pt.y0-pt.y1),rows:pt.rows,title:`${pt.label} — ${cat}`,tooltip:`<strong>${esc(cat)}</strong><br>${esc(pt.label)}<br>${fmt(pt.count)} of ${fmt(pt.total)} page views (${pct.toFixed(1)}%)`})})});drawXLabels(ctx,pts.map(x=>x.label),p,w,h,ratio,false);const legendX=p.left+w+18*ratio;let legendY=p.top+8*ratio;ctx.textAlign='left';ctx.font=`${12*ratio}px ui-sans-serif, sans-serif`;categories.forEach(cat=>{ctx.fillStyle=categoryColours.get(cat)||CATEGORY_COLOURS[0];ctx.fillRect(legendX,legendY-9*ratio,10*ratio,10*ratio);ctx.fillStyle=AXIS_INK;ctx.fillText(shorten(cat,22),legendX+16*ratio,legendY);legendY+=20*ratio});}
+function hexToRgba(hex,a){const h=hex.replace('#','');const n=parseInt(h.length===3?h.split('').map(x=>x+x).join(''):h,16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`}
+function drawGrid(ctx,p,w,h,max,ratio){ctx.strokeStyle=AXIS_LINE;ctx.lineWidth=1*ratio;ctx.beginPath();ctx.moveTo(p.left,p.top);ctx.lineTo(p.left,p.top+h);ctx.lineTo(p.left+w,p.top+h);ctx.stroke();ctx.fillStyle=AXIS_INK;ctx.textAlign='right';const _f=ctx.font;ctx.font=`${11*ratio}px ${'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'}`;for(let i=0;i<=4;i++){const v=Math.round(max*i/4),y=p.top+h-(v/max*h);ctx.fillText(fmt(v),p.left-10*ratio,y+4*ratio);ctx.strokeStyle=GRID_LINE;ctx.beginPath();ctx.moveTo(p.left,y);ctx.lineTo(p.left+w,y);ctx.stroke()}ctx.font=_f;ctx.textAlign='left'}
+function drawXLabels(ctx,labels,p,w,h,ratio,allLabels){ctx.fillStyle=AXIS_INK;ctx.textAlign='right';const every=allLabels?1:Math.max(1,Math.ceil(labels.length/8));labels.forEach((lab,i)=>{if(i%every!==0&&i!==labels.length-1)return;const x=p.left+(labels.length===1?w/2:(i+.5)*(w/labels.length));ctx.save();ctx.translate(x-4*ratio,p.top+h+(allLabels?48:40)*ratio);ctx.rotate(-Math.PI/4);ctx.fillText(lab,0,0);ctx.restore()});ctx.textAlign='left'}
+function note(ctx,t,p){ctx.fillStyle=AXIS_INK;ctx.fillText(t,p.left,p.top+28)}
+function summarise(rows,field){const m=new Map();rows.forEach(r=>{const k=r[field]||'(blank)';if(!m.has(k))m.set(k,{value:k,count:0,rows:[],first:null,last:null});const o=m.get(k);o.count++;o.rows.push(r);if(r.viewDate&&(!o.first||r.viewDate<o.first))o.first=r.viewDate;if(r.viewDate&&(!o.last||r.viewDate>o.last))o.last=r.viewDate});return[...m.values()].sort((a,b)=>b.count-a.count||String(a.value).localeCompare(String(b.value)))}
+function firstByPage(rows){const m=new Map();rows.forEach(r=>{if(!m.has(r.pageKey))m.set(r.pageKey,r)});return m}
+
+function renderTopPages(rows){const limit=Math.max(1,+$('topLimit').value||50),top=summarise(rows,'pageKey').slice(0,limit),meta=firstByPage(rows);$('topPagesTable').innerHTML=`<thead><tr><th>${esc(COLUMN_LABELS.pageTitle)}</th><th>${esc(COLUMN_LABELS.pageId)}</th><th>${esc(COLUMN_LABELS.pageCode)}</th><th>Page category</th><th>${esc(COLUMN_LABELS.pageType)}</th><th class="numeric">Page views</th><th class="numeric">Share</th><th></th></tr></thead><tbody>${top.map(x=>{const r=meta.get(x.value)||{},pct=rows.length?(x.count/rows.length*100).toFixed(1)+'%':'0%';return`<tr><td>${pageTextLink(r.pageId,r.pageTitle||x.value)}</td><td>${pageTextLink(r.pageId,r.pageId||'')}</td><td>${esc(r.pageCode||'')}</td><td><span class="linkish" data-drill-field="pageCategory" data-drill-value="${esc(r.pageCategory||'')}">${esc(r.pageCategory||'')}</span></td><td><span class="linkish" data-drill-field="pageType" data-drill-value="${esc(r.pageType||'')}">${esc(r.pageType||'')}</span></td><td class="numeric">${fmt(x.count)}</td><td class="numeric">${pct}</td><td><button data-drill-field="pageKey" data-drill-value="${esc(x.value)}">Drill</button></td></tr>`}).join('')}</tbody>`;$('topPagesTable').querySelectorAll('[data-drill-field]').forEach(el=>el.onclick=()=>{drill={field:el.dataset.drillField,value:el.dataset.drillValue};renderDashboard()})}
+
+function renderTopUsers(rows){const limit=Math.max(1,+$('topUserLimit').value||50),withUsers=rows.filter(r=>String(r.user||'').trim()),top=summarise(withUsers,'user').slice(0,limit);$('topUsersTable').innerHTML=`<thead><tr><th class="numeric">Rank</th><th>${esc(COLUMN_LABELS.user)}</th><th class="numeric">Total views</th><th class="numeric">Share of filtered views</th><th></th></tr></thead><tbody>${top.length?top.map((x,i)=>{const pct=rows.length?(x.count/rows.length*100).toFixed(1)+'%':'0%';return`<tr><td class="numeric">${fmt(i+1)}</td><td><span class="linkish" data-drill-user="${esc(x.value)}">${esc(x.value)}</span></td><td class="numeric">${fmt(x.count)}</td><td class="numeric">${pct}</td><td><button data-drill-user="${esc(x.value)}">Drill</button></td></tr>`}).join(''):`<tr><td colspan="5">No user values are available for this filtered view.</td></tr>`}</tbody>`;$('topUsersTable').querySelectorAll('[data-drill-user]').forEach(el=>el.onclick=()=>{drill={field:'user',value:el.dataset.drillUser};renderDashboard()})}
+
+function drawParetoChart(rows){const canvas=$('paretoChart'),ctx=canvas.getContext('2d'),ratio=resizeCanvasToDisplaySize(canvas);chartHits.pareto=[];ctx.clearRect(0,0,canvas.width,canvas.height);ctx.font=`${11*ratio}px ui-sans-serif, sans-serif`;const limit=Math.max(1,+$('topLimit').value||50),top=summarise(rows,'pageKey').slice(0,limit),meta=firstByPage(rows),pages=top.map(x=>{const r=meta.get(x.value)||{};return{...x,title:r.pageTitle||x.value,row:r}});const p={left:56*ratio,right:70*ratio,top:20*ratio,bottom:190*ratio},w=canvas.width-p.left-p.right,h=canvas.height-p.top-p.bottom;if(!pages.length){note(ctx,'No page views to chart.',p);return}const max=Math.max(...pages.map(x=>x.count),1),total=rows.length||1,barW=Math.max(3*ratio,w/pages.length*.68),slot=w/pages.length;drawGrid(ctx,p,w,h,max,ratio);let cum=0,line=[];pages.forEach((pg,i)=>{cum+=pg.count;const x=p.left+i*slot+(slot-barW)/2,bh=pg.count/max*h,y=p.top+h-bh;ctx.fillStyle=BAR_BLUE;ctx.fillRect(x,y,barW,bh);const pct=cum/total*100,centre=x+barW/2,lineY=p.top+h-(pct/100*h);line.push({x:centre,y:lineY});chartHits.pareto.push({x,y,w:barW,h:bh||2*ratio,rows:pg.rows,title:pg.title,tooltip:`<strong>${esc(pg.title)}</strong><br>${fmt(pg.count)} page views<br>Cumulative share: ${pct.toFixed(1)}%`});chartHits.pareto.push({x:p.left+i*slot,y:p.top+h+8*ratio,w:slot,h:p.bottom-14*ratio,rows:pg.rows,title:pg.title,tooltip:`<strong>${esc(pg.title)}</strong><br>${fmt(pg.count)} page views<br>Cumulative share: ${pct.toFixed(1)}%`})});ctx.strokeStyle=PARETO_AMBER;ctx.lineWidth=2*ratio;ctx.beginPath();line.forEach((pt,i)=>i?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y));ctx.stroke();line.forEach(pt=>{ctx.fillStyle=PARETO_AMBER;ctx.beginPath();ctx.arc(pt.x,pt.y,2.4*ratio,0,Math.PI*2);ctx.fill()});ctx.fillStyle=AXIS_INK;ctx.textAlign='left';ctx.fillText('100%',canvas.width-46*ratio,p.top+5*ratio);ctx.fillText('0%',canvas.width-34*ratio,p.top+h+4*ratio);drawXLabels(ctx,pages.map(x=>shorten(x.title,34)),p,w,h,ratio,true)}
+function shorten(text,len){text=String(text||'');return text.length>len?text.slice(0,Math.max(1,len-1))+'…':text}
+
+function renderMovers(rows){const g=$('trendGranularity').value,b=[...buckets(rows,g).values()].sort((a,b)=>a.key.localeCompare(b.key));if(b.length<2){$('moverPeriodLabel').textContent='Need at least two periods.';$('moversUpTable').innerHTML='<tbody><tr><td>No comparison available.</td></tr></tbody>';$('moversDownTable').innerHTML='<tbody><tr><td>No comparison available.</td></tr></tbody>';return}const prev=b[b.length-2],cur=b[b.length-1];$('moverPeriodLabel').textContent=`${cur.label} compared with ${prev.label}`;const pc=countBy(prev.rows,'pageKey'),cc=countBy(cur.rows,'pageKey'),ids=[...new Set([...pc.keys(),...cc.keys()])],meta=firstByPage(rows);const movers=ids.map(id=>({id,row:meta.get(id)||{},cur:cc.get(id)||0,prev:pc.get(id)||0,change:(cc.get(id)||0)-(pc.get(id)||0)}));const up=movers.filter(m=>m.change>0).sort((a,b)=>b.change-a.change||b.cur-a.cur).slice(0,20),down=movers.filter(m=>m.change<0).sort((a,b)=>a.change-b.change||a.cur-b.cur).slice(0,20);renderMoverTable('moversUpTable',up);renderMoverTable('moversDownTable',down)}
+function renderMoverTable(id,rows){$(id).innerHTML=`<thead><tr><th>${esc(COLUMN_LABELS.pageTitle)}</th><th class="numeric">Current</th><th class="numeric">Previous</th><th class="numeric">Change</th></tr></thead><tbody>${rows.length?rows.map(m=>`<tr><td><span class="linkish" data-mover-id="${esc(m.id)}">${esc(m.row.pageTitle||m.id)}</span><div class="muted small">${esc([m.row.pageId&&'ID: '+m.row.pageId,m.row.pageCode&&'Code: '+m.row.pageCode].filter(Boolean).join(' · '))}</div></td><td class="numeric">${fmt(m.cur)}</td><td class="numeric">${fmt(m.prev)}</td><td class="numeric ${m.change>=0?'pos':'neg'}">${m.change>=0?'+':''}${fmt(m.change)}</td></tr>`).join(''):'<tr><td colspan="4">No movers.</td></tr>'}</tbody>`;$(id).querySelectorAll('[data-mover-id]').forEach(el=>el.onclick=()=>{drill={field:'pageKey',value:el.dataset.moverId};renderDashboard()})}
+function countBy(rows,field){const m=new Map();rows.forEach(r=>m.set(r[field],(m.get(r[field])||0)+1));return m}
+
+function wireChart(canvasId,name,tooltipId){const c=$(canvasId),tip=$(tooltipId);c.onclick=e=>handleChartClick(e,canvasId,name);c.onmousemove=e=>handleChartMove(e,canvasId,name,tip);c.onmouseleave=()=>tip.classList.add('hidden')}
+function hitAt(e,canvasId,name){const c=$(canvasId),rect=c.getBoundingClientRect(),x=(e.clientX-rect.left)*c.width/rect.width,y=(e.clientY-rect.top)*c.height/rect.height;return (chartHits[name]||[]).find(h=>h.r?Math.hypot(x-h.x,y-h.y)<=h.r:(x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h))}
+function handleChartClick(e,canvasId,name){const h=hitAt(e,canvasId,name);if(h){renderSelection(h.rows,h.title);$('selectionPanel').scrollIntoView({behavior:'smooth',block:'start'})}}
+function handleChartMove(e,canvasId,name,tip){const h=hitAt(e,canvasId,name);if(!h){tip.classList.add('hidden');return}const rect=$(canvasId).getBoundingClientRect();tip.innerHTML=h.tooltip||esc(h.title);tip.style.left=Math.min(e.clientX-rect.left+14,rect.width-320)+'px';tip.style.top=Math.max(8,e.clientY-rect.top+14)+'px';tip.classList.remove('hidden')}
+function renderSelection(rows,title){if(!rows){$('selectionPanel').classList.add('hidden');$('selectionTable').innerHTML='';return}$('selectionPanel').classList.remove('hidden');$('selectionTitle').textContent=`Underlying page views — ${title}`;$('selectionTable').innerHTML=`<thead><tr><th>View date</th><th>${esc(COLUMN_LABELS.pageId)}</th><th>${esc(COLUMN_LABELS.pageCode)}</th><th>${esc(COLUMN_LABELS.pageTitle)}</th><th>Page category</th><th>${esc(COLUMN_LABELS.pageType)}</th><th>${esc(COLUMN_LABELS.department)}</th><th>${esc(COLUMN_LABELS.user)}</th></tr></thead><tbody>${rows.slice().sort((a,b)=>(b.viewDay||'').localeCompare(a.viewDay||'')).map(r=>`<tr><td>${esc(r.viewDateText||r.viewDay)}</td><td>${pageTextLink(r.pageId,r.pageId||'')}</td><td>${esc(r.pageCode||'')}</td><td>${pageTextLink(r.pageId,r.pageTitle)}</td><td>${esc(r.pageCategory)}</td><td>${esc(r.pageType)}</td><td>${esc(r.department)}</td><td>${esc(r.user||'')}</td></tr>`).join('')}</tbody>`}
+function pageHref(id){return PAGE_URL_PREFIX&&id?PAGE_URL_PREFIX+encodeURIComponent(String(id)):''}
+function pageTextLink(id,text){const href=pageHref(id);return href?`<a class="page-link" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(text||id)}</a>`:esc(text||id)}
+
+function getCurrentViewConfig(){return{filters:{pageCategories:selectedValues('categoryFilter'),pageTypes:selectedValues('typeFilter'),pageId:$('pageIdFilter').value,department:$('departmentFilter').value,titleSearch:$('titleSearch').value,dateFrom:$('dateFromFilter').value,dateTo:$('dateToFilter').value,excludeUsers:$('excludeUsersToggle').checked},topLimit:+$('topLimit').value||50,topUserLimit:+$('topUserLimit').value||50,trendGranularity:$('trendGranularity').value,drill:drill.field?{...drill}:{field:null,value:null}}}
+function applyViewConfig(c){const v=c||DEFAULT_VIEW_CONFIG,f=v.filters||{};setSelectedValues('categoryFilter',f.pageCategories??f.pageGroup??[]);updateTypeOptions(true);setSelectedValues('typeFilter',f.pageTypes??f.pageType??[]);setVal('pageIdFilter',f.pageId||'');setVal('departmentFilter',f.department||'');$('titleSearch').value=f.titleSearch||'';$('dateFromFilter').value=f.dateFrom||$('dateFromFilter').min||'';$('dateToFilter').value=f.dateTo||$('dateToFilter').max||'';$('excludeUsersToggle').checked=f.excludeUsers!==undefined?!!f.excludeUsers:EXCLUDED_USERS_ENABLED_BY_DEFAULT;$('topLimit').value=Math.max(1,+(v.topLimit||50));$('topUserLimit').value=Math.max(1,+(v.topUserLimit||50));setVal('trendGranularity',v.trendGranularity||'week');drill=v.drill?.field?{field:v.drill.field,value:v.drill.value}:{field:null,value:null};updatePeriodTabs()}
+function setVal(id,val){const el=$(id);if(el.tagName==='SELECT')el.value=[...el.options].some(o=>o.value===val)?val:'';else el.value=val||''}
+function loadFavouriteViews(){try{const p=JSON.parse(localStorage.getItem(VIEW_STORAGE_KEY)||localStorage.getItem(LEGACY_VIEW_STORAGE_KEY)||'{}');return p&&typeof p==='object'&&!Array.isArray(p)?p:{}}catch{return{}}}function saveFavouriteViews(v){localStorage.setItem(VIEW_STORAGE_KEY,JSON.stringify(v,null,2))}
+function renderFavouriteViews(){const sel=$('favouriteViewSelect'),views=loadFavouriteViews(),names=Object.keys(views).sort((a,b)=>a.localeCompare(b));const cur=sel.value;sel.innerHTML=names.length?'<option value="">Select a saved view</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join(''):'<option value="">No saved views yet</option>';if(names.includes(cur))sel.value=cur;const def=localStorage.getItem(DEFAULT_VIEW_STORAGE_KEY)||'';$('defaultViewPill').textContent=def&&views[def]?`Default: ${def}`:'Default: hard-coded fallback'}
+function applyOpeningView(){const views=loadFavouriteViews(),def=localStorage.getItem(DEFAULT_VIEW_STORAGE_KEY)||'';if(def&&views[def]){applyViewConfig(views[def]);showViewStatus(`Applied default: ${def}.`)}else{applyViewConfig(DEFAULT_VIEW_CONFIG);showViewStatus('Applied fallback view.')}renderFavouriteViews()}
+function saveFavouriteView(){const n=($('favouriteViewName').value||'').trim();if(!n)return showViewStatus('Enter a view name.',true);const v=loadFavouriteViews();v[n]=getCurrentViewConfig();saveFavouriteViews(v);renderFavouriteViews();$('favouriteViewSelect').value=n;showViewStatus(`Saved: ${n}.`)}
+function applySelectedFavourite(){const n=$('favouriteViewSelect').value,v=loadFavouriteViews();if(!n||!v[n])return showViewStatus('Select a saved view.',true);applyViewConfig(v[n]);renderDashboard();showViewStatus(`Applied: ${n}.`)}
+function setSelectedFavouriteAsDefault(){const n=$('favouriteViewSelect').value,v=loadFavouriteViews();if(!n||!v[n])return showViewStatus('Select a saved view.',true);localStorage.setItem(DEFAULT_VIEW_STORAGE_KEY,n);renderFavouriteViews();showViewStatus(`Default set: ${n}.`)}
+function clearDefaultFavourite(){localStorage.removeItem(DEFAULT_VIEW_STORAGE_KEY);renderFavouriteViews();showViewStatus('Using fallback default.')}function deleteSelectedFavourite(){const n=$('favouriteViewSelect').value,v=loadFavouriteViews();if(!n||!v[n])return showViewStatus('Select a saved view.',true);delete v[n];saveFavouriteViews(v);if(localStorage.getItem(DEFAULT_VIEW_STORAGE_KEY)===n)localStorage.removeItem(DEFAULT_VIEW_STORAGE_KEY);renderFavouriteViews();showViewStatus(`Deleted: ${n}.`)}
+function exportFavouriteViews(){downloadText(JSON.stringify({version:2,exportedAt:new Date().toISOString(),defaultFavouriteName:localStorage.getItem(DEFAULT_VIEW_STORAGE_KEY)||'',views:loadFavouriteViews()},null,2),'page-views-favourite-views.json','application/json')}
+function importFavouriteViews(e){const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const p=JSON.parse(String(r.result||'{}')),incoming=p.views||p;if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))throw new Error('No views found.');saveFavouriteViews({...loadFavouriteViews(),...incoming});if(p.defaultFavouriteName)localStorage.setItem(DEFAULT_VIEW_STORAGE_KEY,p.defaultFavouriteName);renderFavouriteViews();showViewStatus('Imported views.')}catch(err){showViewStatus(err.message||String(err),true)}finally{e.target.value=''}};r.readAsText(f)}
+function showViewStatus(m,err=false){$('viewStatus').textContent=m||'';$('viewStatus').className=(err?'error':'muted')+' small status'}
+function exportTopPageIds(){const rows=getFilteredRows(),top=summarise(rows,'pageKey').slice(0,Math.max(1,+$('topLimit').value||50)),meta=firstByPage(rows);const head=[COLUMN_LABELS.pageId,COLUMN_LABELS.pageCode,COLUMN_LABELS.pageTitle,'Page URL','Page category',COLUMN_LABELS.pageType,'Page views','Share of filtered page views'];const body=top.map(x=>{const r=meta.get(x.value)||{},pct=rows.length?(x.count/rows.length*100).toFixed(1)+'%':'0%';return[r.pageId||'',r.pageCode||'',r.pageTitle||'',pageHref(r.pageId),r.pageCategory||'',r.pageType||'',x.count,pct].map(csvEsc).join(',')});downloadText(head.map(csvEsc).join(',')+'\n'+body.join('\n'),'top-page-views.csv','text/csv')}
+function downloadText(text,name,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u)}
+window.addEventListener('resize',()=>{if(rawRows.length)renderDashboard()});
+</script>
+</body>
+</html>
